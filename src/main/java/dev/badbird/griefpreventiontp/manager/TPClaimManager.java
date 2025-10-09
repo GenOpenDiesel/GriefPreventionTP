@@ -114,8 +114,9 @@ public class TPClaimManager {
                     GriefPreventionTP.getInstance().getLogger().warning("claim owner was null for " + claim.getOwnerName());
                     OfflinePlayer op = GriefPreventionTP.getInstance().getServer().getOfflinePlayer(claim.getOwnerName());
                     if (op.hasPlayedBefore()) {
-                        claim.setOwner(op.getUniqueId());
-                        GriefPreventionTP.getInstance().getLogger().warning(" -> This has been automatically fixed: " + claim.getOwner());
+                        owner = op.getUniqueId();
+                        claim.setOwner(owner);
+                        GriefPreventionTP.getInstance().getLogger().warning(" -> This has been automatically fixed: " + owner);
                     }
                 } else {
                     GriefPreventionTP.getInstance().getLogger().warning("claim owner was null for " + claim.getClaimID());

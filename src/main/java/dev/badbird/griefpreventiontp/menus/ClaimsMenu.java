@@ -34,7 +34,16 @@ public class ClaimsMenu extends PaginatedMenu {
     private final UUID uuid;
     private String searchTerm;
     private boolean privateClaims = true;
+    
+    // Sortowanie
+    private SortType sortType = SortType.DEFAULT;
+    private boolean sortAscending = true;
 
+    public enum SortType {
+        DEFAULT, // Data dodania (wg ID claima)
+        NAME,    // Nazwa claima
+        OWNER    // Nazwa właściciela
+    }
 
     public ClaimsMenu(UUID uuid, String searchTerm) {
         this.uuid = uuid;
@@ -67,7 +76,31 @@ public class ClaimsMenu extends PaginatedMenu {
         }
         List<Button> buttons = new ArrayList<>();
         Collection<ClaimInfo> claims = privateClaims ? GriefPreventionTP.getInstance().getClaimManager().getClaims(uuid) : GriefPreventionTP.getInstance().getClaimManager().getAllPublicClaims();
-        for (ClaimInfo claim : claims) {
+        
+        // --- LOGIKA SORTOWANIA ---
+        List<ClaimInfo> sortedClaims = new ArrayList<>(claims);
+        sortedClaims.sort((c1, c2) -> {
+            int result = 0;
+            switch (sortType) {
+                case NAME:
+                    String name1 = c1.getName() != null ? c1.getName() : "";
+                    String name2 = c2.getName() != null ? c2.getName() : "";
+                    result = name1.compareToIgnoreCase(name2);
+                    break;
+                case OWNER:
+                    String owner1 = c1.getOwnerName() != null ? c1.getOwnerName() : "";
+                    String owner2 = c2.getOwnerName() != null ? c2.getOwnerName() : "";
+                    result = owner1.compareToIgnoreCase(owner2);
+                    break;
+                case DEFAULT:
+                default:
+                    result = Long.compare(c1.getClaimID(), c2.getClaimID());
+                    break;
+            }
+            return sortAscending ? result : -result;
+        });
+
+        for (ClaimInfo claim : sortedClaims) {
             if (searchTerm != null && !claim.getName().toLowerCase().contains(searchTerm.toLowerCase()) && !claim.getOwnerName().toLowerCase().contains(searchTerm.toLowerCase()))
                 continue;
             buttons.add(new ClaimButton(claim, player, hasPermission));
@@ -81,6 +114,7 @@ public class ClaimsMenu extends PaginatedMenu {
         if (GriefPreventionTP.getInstance().getConfig().getBoolean("menu.enable-search", true)) {
             buttons.add(new SearchButton());
         }
+        buttons.add(new SortButton()); // Dodanie przycisku sortowania do menu
         return buttons;
     }
 
@@ -99,8 +133,6 @@ public class ClaimsMenu extends PaginatedMenu {
             @Override
             public ItemStack getItem(Player player) {
                 String base = "filter." + (privateClaims ? "disabled" : "enabled");
-                // return new ItemBuilder(Material.PAPER).setName(CC.GREEN + "Viewing Public Claims: " + (!privateClaims ? "Yes" : CC.RED + "No"))
-                //        .lore(CC.GRAY + "Click to toggle.").build();
                 ItemStack itemStack = new ItemStack(Material.PAPER);
                 Component name = AdventureUtil.getComponentFromConfig("claims", base + ".name", "<green>Viewing Public Claims: " + (!privateClaims ? "<green>Yes" : "<red>No"));
                 List<Component> lore = AdventureUtil.getComponentListFromConfigDef("claims", base + ".lore", List.of("<gray>Click to toggle."));
@@ -121,8 +153,7 @@ public class ClaimsMenu extends PaginatedMenu {
         return new CloseButton() {
             @Override
             public ItemStack getItem(Player player) {
-                // return new ItemBuilder(Material.valueOf(plugin.getConfig().getString("menu.close-button-type"))).name(CC.RED + "Close").build();
-                ItemStack itemStack = new ItemStack(Material.valueOf(plugin.getConfig().getString("menu.close-button.type")));
+                ItemStack itemStack = new ItemStack(Material.valueOf(plugin.getConfig().getString("menu.close-button.type", "BARRIER")));
                 Component name = AdventureUtil.getComponentFromConfig("", "menu.close-button.name", "<red>Close");
                 AdventureUtil.setItemDisplayName(itemStack, name);
                 List<Component> lore = AdventureUtil.getComponentListFromConfig("", "menu.close-button.lore");
@@ -148,7 +179,7 @@ public class ClaimsMenu extends PaginatedMenu {
 
             @Override
             public ItemStack getItem(Player player) {
-                Material material = Material.valueOf(plugin.getConfig().getString("menu.next-page.type"));
+                Material material = Material.valueOf(plugin.getConfig().getString("menu.next-page.type", "ARROW"));
                 ItemStack item = new ItemStack(material);
                 Component name = AdventureUtil.getComponentFromConfig("config", "menu.next-page.name", "<green>Next Page");
                 List<Component> lore = AdventureUtil.getComponentListFromConfig("config", "menu.next-page.lore", List.of(
@@ -171,7 +202,7 @@ public class ClaimsMenu extends PaginatedMenu {
 
             @Override
             public ItemStack getItem(Player player) {
-                Material material = Material.valueOf(plugin.getConfig().getString("menu.previous-page.type"));
+                Material material = Material.valueOf(plugin.getConfig().getString("menu.previous-page.type", "ARROW"));
                 ItemStack item = new ItemStack(material);
                 Component name = AdventureUtil.getComponentFromConfig("config", "menu.previous-page.name", "<green>Previous Page");
                 List<Component> lore = AdventureUtil.getComponentListFromConfig("config", "menu.previous-page.lore", List.of(
@@ -242,7 +273,7 @@ public class ClaimsMenu extends PaginatedMenu {
             return stack;
         }
 
-        private static List<Component> processLore(List<String> lore1, boolean canEdit, boolean bedrock, boolean hasPermission, boolean hasMoney) { // fuck it we're doing this for now
+        private static List<Component> processLore(List<String> lore1, boolean canEdit, boolean bedrock, boolean hasPermission, boolean hasMoney) {
             Map<String, BiPredicate<Boolean, Boolean>> conditions = Map.of(
                     "canEdit:bedrock:", (c, b) -> c && b,
                     "canEdit:java:", (c, b) -> c && !b,
@@ -259,7 +290,7 @@ public class ClaimsMenu extends PaginatedMenu {
                 for (Map.Entry<String, BiPredicate<Boolean, Boolean>> entry : conditions.entrySet()) {
                     String prefix = entry.getKey();
                     BiPredicate<Boolean, Boolean> condition = entry.getValue();
-                    if (str.startsWith(prefix)) { // note to self: maybe the return is fucking up the loop something
+                    if (str.startsWith(prefix)) {
                         if (condition.test(canEdit, bedrock)) {
                             return MiniMessage.miniMessage().deserialize(str.substring(prefix.length()));
                         }
@@ -294,15 +325,8 @@ public class ClaimsMenu extends PaginatedMenu {
     }
 
     private class SearchButton extends Button {
-
         @Override
         public ItemStack getItem(Player player) {
-            /*
-            return new ItemBuilder(Material.OAK_SIGN)
-                    .setName("&aSearch")
-                    .lore(CC.GRAY + "Click to search claims!")
-                    .build();
-             */
             ItemStack item = new ItemStack(
                     Material.valueOf(MenuManager.getString("claims", "search.type", "OAK_SIGN"))
             );
@@ -325,13 +349,6 @@ public class ClaimsMenu extends PaginatedMenu {
             new ComponentQuestionConversation(MessageManager.getComponent("messages.search"), (a) -> {
                 String answer = a.toLowerCase();
                 List<String> cancelMessages = plugin.getConfig().getStringList("search.cancel-messages");
-                /*
-                if (answer.equals("cancel")) {
-                    searchTerm = null;
-                    open(player);
-                    return Prompt.END_OF_CONVERSATION;
-                }
-                 */
                 if (cancelMessages.stream().anyMatch(s -> s.equalsIgnoreCase(answer))) {
                     searchTerm = null;
                     open(player);
@@ -342,6 +359,50 @@ public class ClaimsMenu extends PaginatedMenu {
                 open(player);
                 return Prompt.END_OF_CONVERSATION;
             }).start(player);
+        }
+    }
+
+    // Nowy przycisk sortowania
+    private class SortButton extends Button {
+        @Override
+        public ItemStack getItem(Player player) {
+            ItemStack item = new ItemStack(Material.valueOf(MenuManager.getString("claims", "sort.type", "HOPPER")));
+            Component name = AdventureUtil.getComponentFromConfig("claims", "sort.name", "<green>Sortowanie");
+
+            String typeStr = "";
+            switch (sortType) {
+                case DEFAULT: typeStr = "Kolejność dodania"; break;
+                case NAME: typeStr = "Nazwa bazy"; break;
+                case OWNER: typeStr = "Właściciel"; break;
+            }
+            String orderStr = sortAscending ? "Rosnąco" : "Malejąco";
+
+            List<Component> lore = new ArrayList<>();
+            lore.add(MiniMessage.miniMessage().deserialize("<gray>Aktualne sortowanie: <yellow>" + typeStr));
+            lore.add(MiniMessage.miniMessage().deserialize("<gray>Kierunek: <yellow>" + orderStr));
+            lore.add(MiniMessage.miniMessage().deserialize(""));
+            lore.add(MiniMessage.miniMessage().deserialize("<gray>Kliknij <green>LPM</green>, aby zmienić tryb."));
+            lore.add(MiniMessage.miniMessage().deserialize("<gray>Kliknij <green>PPM</green>, aby zmienić kierunek."));
+
+            AdventureUtil.setItemDisplayName(item, name);
+            AdventureUtil.setItemLore(item, lore);
+            return item;
+        }
+
+        @Override
+        public int getSlot() {
+            return 43;
+        }
+
+        @Override
+        public void onClick(Player player, int slot, ClickType clickType, InventoryClickEvent event) {
+            if (clickType.isLeftClick()) {
+                int nextOrdinal = (sortType.ordinal() + 1) % SortType.values().length;
+                sortType = SortType.values()[nextOrdinal];
+            } else if (clickType.isRightClick()) {
+                sortAscending = !sortAscending;
+            }
+            update(player);
         }
     }
 }

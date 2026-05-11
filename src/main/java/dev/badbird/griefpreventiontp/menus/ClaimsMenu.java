@@ -3,6 +3,7 @@ package dev.badbird.griefpreventiontp.menus;
 import dev.badbird.griefpreventiontp.GriefPreventionTP;
 import dev.badbird.griefpreventiontp.api.ClaimInfo;
 import dev.badbird.griefpreventiontp.api.IconWrapper;
+import dev.badbird.griefpreventiontp.api.PlayerSortPreference;
 import dev.badbird.griefpreventiontp.manager.MenuManager;
 import dev.badbird.griefpreventiontp.manager.MessageManager;
 import dev.badbird.griefpreventiontp.object.ComponentQuestionConversation;
@@ -38,6 +39,7 @@ public class ClaimsMenu extends PaginatedMenu {
     // Sortowanie
     private SortType sortType = SortType.DEFAULT;
     private boolean sortAscending = true;
+    private boolean sortPreferenceLoaded = false;
 
     public enum SortType {
         DEFAULT, // Data dodania (wg ID claima)
@@ -68,6 +70,7 @@ public class ClaimsMenu extends PaginatedMenu {
 
     @Override
     public List<Button> getPaginatedButtons(Player player) {
+        loadSortPreference(player);
         boolean hasPermission = true;
         if (GriefPreventionTP.getInstance().getConfig().getBoolean("teleport.permission.enabled", false)) {
             if (!player.hasPermission("gptp.teleport")) {
@@ -106,6 +109,21 @@ public class ClaimsMenu extends PaginatedMenu {
             buttons.add(new ClaimButton(claim, player, hasPermission));
         }
         return buttons;
+    }
+
+    private void loadSortPreference(Player player) {
+        if (sortPreferenceLoaded) {
+            return;
+        }
+        PlayerSortPreference preference = GriefPreventionTP.getInstance().getClaimManager().getPlayerSortPreference(player.getUniqueId());
+        String storedSortType = preference.getSortType();
+        try {
+            sortType = storedSortType == null ? SortType.DEFAULT : SortType.valueOf(storedSortType);
+        } catch (IllegalArgumentException ignored) {
+            sortType = SortType.DEFAULT;
+        }
+        sortAscending = preference.isSortAscending();
+        sortPreferenceLoaded = true;
     }
 
     @Override
@@ -217,14 +235,12 @@ public class ClaimsMenu extends PaginatedMenu {
 
     private class ClaimButton extends Button {
         private final ClaimInfo claimInfo;
-        private final Player player;
         private Claim claim;
         private boolean canEdit;
         private final boolean hasPermission;
 
         public ClaimButton(ClaimInfo claimInfo, Player player, boolean hasPermission) {
             this.claimInfo = claimInfo;
-            this.player = player;
             this.claim = claimInfo.getClaim();
             this.canEdit = player.hasPermission("gptp.staff") ||
                     GriefPreventionTP.getInstance().getPermissionsManager()
@@ -402,6 +418,10 @@ public class ClaimsMenu extends PaginatedMenu {
             } else if (clickType.isRightClick()) {
                 sortAscending = !sortAscending;
             }
+            GriefPreventionTP.getInstance().getClaimManager().setPlayerSortPreference(
+                    player.getUniqueId(),
+                    new PlayerSortPreference(sortType.name(), sortAscending)
+            );
             update(player);
         }
     }

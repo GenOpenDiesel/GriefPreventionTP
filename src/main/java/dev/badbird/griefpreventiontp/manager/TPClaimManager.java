@@ -2,6 +2,7 @@ package dev.badbird.griefpreventiontp.manager;
 
 import dev.badbird.griefpreventiontp.GriefPreventionTP;
 import dev.badbird.griefpreventiontp.api.ClaimInfo;
+import dev.badbird.griefpreventiontp.api.PlayerSortPreference;
 import dev.badbird.griefpreventiontp.util.ConfigUtil;
 import lombok.Getter;
 import me.ryanhamshire.GriefPrevention.Claim;
@@ -23,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TPClaimManager {
     private ConcurrentHashMap<UUID, CopyOnWriteArrayList<ClaimInfo>> claims = new ConcurrentHashMap<>();
     private CopyOnWriteArrayList<ClaimInfo> publicClaims = new CopyOnWriteArrayList<>();
+    private ConcurrentHashMap<UUID, PlayerSortPreference> playerSortPreferences = new ConcurrentHashMap<>();
 
     private CopyOnWriteArrayList<ClaimInfo> allClaims = new CopyOnWriteArrayList<>(); // Holds references to all claims
 
@@ -58,7 +60,9 @@ public class TPClaimManager {
         allClaims.clear();
         publicClaims.clear();
         claims.clear();
+        playerSortPreferences.clear();
         allClaims.addAll(GriefPreventionTP.getInstance().getStorageProvider().getClaims());
+        playerSortPreferences.putAll(GriefPreventionTP.getInstance().getStorageProvider().getPlayerSortPreferences());
         sortClaims();
         enableMaxPublic = GriefPreventionTP.getInstance().getConfig().getBoolean("max-public.enable", false);
         enableVaultIntegration = GriefPreventionTP.getInstance().getConfig().getBoolean("vault-integration.enabled", false);
@@ -128,6 +132,7 @@ public class TPClaimManager {
 
     public void save() {
         GriefPreventionTP.getInstance().getStorageProvider().saveClaims(allClaims);
+        GriefPreventionTP.getInstance().getStorageProvider().savePlayerSortPreferences(playerSortPreferences);
     }
 
     public List<ClaimInfo> getClaims(UUID owner) {
@@ -275,5 +280,14 @@ public class TPClaimManager {
                 claim.setName("Unnamed (" + claim.getPlayerClaimCount() + ")");
             }
         }
+    }
+
+    public PlayerSortPreference getPlayerSortPreference(UUID playerUuid) {
+        return playerSortPreferences.getOrDefault(playerUuid, new PlayerSortPreference());
+    }
+
+    public void setPlayerSortPreference(UUID playerUuid, PlayerSortPreference preference) {
+        playerSortPreferences.put(playerUuid, preference);
+        GriefPreventionTP.getInstance().getStorageProvider().savePlayerSortPreferences(playerSortPreferences);
     }
 }

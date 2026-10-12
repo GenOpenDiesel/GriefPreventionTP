@@ -1,7 +1,7 @@
 name: GriefPreventionTP
 version: '${version}'
 main: dev.badbird.griefpreventiontp.GriefPreventionTP
-author: 'Badbird5907'
+author: genallthebest
 website: 'https://badbird.dev'
 api-version: 1.20
 depend:
